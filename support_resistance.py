@@ -13,18 +13,14 @@ from matplotlib import style
 from mpl_finance import candlestick_ohlc
 
 
-style.use('ggplot')
 
-def supres(low, high, n=21, min_touches=2, stat_likeness_percent=2, bounce_percent=5):
+def identify(openp, high, low, close, n=21, min_touches=2, stat_likeness_percent=2,bounce_percent=5):
     # Collapse into dataframe
-    df = pd.concat([high, low], keys = ['high', 'low'], axis=1)
-    df['sup'] = pd.Series(np.zeros(len(low)))
-    df['res'] = pd.Series(np.zeros(len(low)))
-    df['sup_break'] = pd.Series(np.zeros(len(low)))
-    df['sup_break'] = 0
-    df['res_break'] = pd.Series(np.zeros(len(high)))
-    df['res_break'] = 0
-    
+    df = pd.concat([openp, high, low, close], keys = ['open', 'high', 'low','close'], axis=1)
+    df.loc[:,'sup'] = pd.Series(np.zeros(len(low)))
+    df.loc[:,'res'] = pd.Series(np.zeros(len(high)))
+    df.loc[:,'sup_break'] = pd.Series(np.zeros(len(low)))
+    df.loc[:,'res_break'] = pd.Series(np.zeros(len(high)))
     for x in range((n-1)+n, len(df)):
         # Split into defined timeframes for analysis
         tempdf = df[x-n:x+1]
@@ -50,7 +46,7 @@ def supres(low, high, n=21, min_touches=2, stat_likeness_percent=2, bounce_perce
                 awaiting_bounce = False
         if touchdown >= min_touches:
             res = maxima
-        touchdown = 0
+            touchdown = 0
         awaiting_bounce = False
         for y in range(0, len(tempdf)):
             if abs(tempdf.low.iloc[y] - minima) < move_allowance and not awaiting_bounce:
@@ -70,35 +66,50 @@ def supres(low, high, n=21, min_touches=2, stat_likeness_percent=2, bounce_perce
     sup_break_indices = list(df[(np.isnan(df['sup']) & ~np.isnan(df.shift(1)['sup'])) & (df['low'] < df.shift(1)['sup'])].index) 
     for index in sup_break_indices:
         df['sup_break'].at[index] = 1
-    ret_df = pd.concat([df['sup'], df['res'], df['sup_break'], df['res_break']], keys = ['sup', 'res', 'sup_break', 'res_break'], axis=1)
-    return ret_df
+    ret_df = pd.concat([df['open'], df['high'], df['low'], df['close'], df['sup'], df['res'], df['sup_break'], df['res_break']],
+                       keys = ['open', 'high', 'low', 'close','sup', 'res', 'sup_break', 'res_break'], axis=1)
+        #整理
+    res_list = ret_df[(~np.isnan(ret_df['res']))]['res']
+    sup_list = ret_df[(~np.isnan(ret_df['sup']))]['sup']
+        
+    return ret_df, res_list, sup_list
+    
+def drawing(ret_df):
+        #處理
+    last_sup = ret_df[(~np.isnan(ret_df['sup']))]['sup'][-1]
+    last_sup_date=ret_df[(~np.isnan(ret_df['sup']))].index[-1]
+    last_res = ret_df[(~np.isnan(ret_df['res']))]['res'][-1]
+    last_res_date=ret_df[(~np.isnan(ret_df['res']))].index[-1]
+    daydelta = last_res_date - last_sup_date
+        #判斷
+    if last_res > last_sup:
+        ret_df['close'][-42:].plot()
+        plt.axhline(last_sup,color='g',label='Support')
+        plt.axhline(last_res,color='b',label='Resistance')
+    else:
+        if daydelta.days > 0:       #跌破支撐後有壓力
+            ret_df['close'][-42:].plot()
+            plt.axhline(last_res,color='b',label='Resistance')
+        elif daydelta.days < 0:     #突破後有支撐
+            ret_df['close'][-42:].plot()
+            plt.axhline(last_sup,color='g',label='Support')
+    plt.legend()
+    plt.ylabel('Price')        
+    plt.show()
+    
+   
 
 startTime = '2018-1-01'
-df = pdr.DataReader('^TWII','yahoo', startTime,)
+df_data = pdr.DataReader('^TWII','yahoo', startTime,)
+ret_df, res_list, sup_list=identify(df_data['Open'],df_data['High'],df_data['Low'],df_data['Close'])
+drawing(ret_df)
 
-ret_df = supres(df['High'],df['Low'])
-for column in ret_df.columns:
-    df[column] = ret_df[column]
 
-last_sup = df[(~np.isnan(df['sup']))]['sup'][-1]
-last_sup_date=df[(~np.isnan(df['sup']))].index[-1]
-last_res = df[(~np.isnan(df['res']))]['res'][-1]
-last_res_date=df[(~np.isnan(df['res']))].index[-1]
-daydelta = last_res_date - last_sup_date
 
-if last_res > last_sup:
-    df['Close'][-42:].plot()
-    plt.axhline(last_sup,color='g',label='Support')
-    plt.axhline(last_res,color='b',label='Resistance')
-else:
-    if daydelta.days > 0:       #跌破支撐後有壓力
-        df['Close'][-42:].plot()
-        plt.axhline(last_res,color='b',label='Resistance')
-    elif daydelta.days < 0:     #突破後有支撐
-        df['Close'][-42:].plot()
-        plt.axhline(last_sup,color='g',label='Support')
-plt.legend()        
-    
+
+
+
+
 
 
 
