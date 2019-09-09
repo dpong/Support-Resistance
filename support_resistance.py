@@ -11,6 +11,7 @@ import pandas_datareader as pdr
 import matplotlib.pyplot as plt
 from matplotlib import style
 from mpl_finance import candlestick_ohlc
+from data import *
 
 
 
@@ -76,14 +77,14 @@ def identify(openp, high, low, close, n=21, min_touches=2, stat_likeness_percent
     
 def drawing(ret_df):
         #處理
-    last_sup = ret_df[(~np.isnan(ret_df['sup']))]['sup'][-1]
-    last_sup_date=ret_df[(~np.isnan(ret_df['sup']))].index[-1]
-    last_res = ret_df[(~np.isnan(ret_df['res']))]['res'][-1]
-    last_res_date=ret_df[(~np.isnan(ret_df['res']))].index[-1]
-    daydelta = last_res_date - last_sup_date
+    last_sup = ret_df['sup']
+    last_sup = last_sup.iloc[last_sup.nonzero()].iloc[-1]
+    last_res = ret_df['res']
+    last_res = last_res.iloc[last_res.nonzero()].iloc[-1]
+    #daydelta = last_res_date - last_sup_date
         #判斷
     if last_res > last_sup:
-        ret_df['close'][-42:].plot()
+        ret_df['close'][-100:].plot()
         plt.axhline(last_sup,color='g',label='Support')
         plt.axhline(last_res,color='b',label='Resistance')
     else:
@@ -99,10 +100,13 @@ def drawing(ret_df):
     
    
 
-startTime = '2018-1-01'
-df_data = pdr.DataReader('^TWII','yahoo', startTime,)
-ret_df, res_list, sup_list=identify(df_data['Open'],df_data['High'],df_data['Low'],df_data['Close'])
-drawing(ret_df)
+if __name__=='__main__':
+    frequency = 'day'
+    ticker = 'BTC'
+    data_quantity = 400
+    df = get_crypto_from_api(ticker, data_quantity, frequency)
+    ret_df, res_list, sup_list = identify(df['Open'], df['High'], df['Low'], df['Close'],)
+    drawing(ret_df)
 
 
 
